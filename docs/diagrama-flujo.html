@@ -1,0 +1,453 @@
+<title>Anatomía de una API</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg:#f5f6fb;
+    --surface:#ffffff;
+    --surface-2:#edf0f7;
+    --ink:#161822;
+    --ink-soft:#5b6178;
+    --border:#dadde8;
+    --accent-frontend:#3556d1;
+    --accent-backend:#7b4fe0;
+    --accent-db:#0e8f6f;
+    --m-get:#3556d1;
+    --m-post:#0e8f6f;
+    --m-put:#b9720f;
+    --m-delete:#c23b3b;
+    --shadow: 0 1px 2px rgba(20,22,35,.05), 0 10px 26px -14px rgba(20,22,35,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#0e1016;
+      --surface:#171a23;
+      --surface-2:#1f2330;
+      --ink:#eef0f6;
+      --ink-soft:#a7adc0;
+      --border:#2b2f3d;
+      --accent-frontend:#7c95ff;
+      --accent-backend:#b096ff;
+      --accent-db:#39cf9f;
+      --m-get:#7c95ff;
+      --m-post:#39cf9f;
+      --m-put:#e5a94a;
+      --m-delete:#f07474;
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 26px -14px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#0e1016; --surface:#171a23; --surface-2:#1f2330; --ink:#eef0f6; --ink-soft:#a7adc0; --border:#2b2f3d;
+    --accent-frontend:#7c95ff; --accent-backend:#b096ff; --accent-db:#39cf9f;
+    --m-get:#7c95ff; --m-post:#39cf9f; --m-put:#e5a94a; --m-delete:#f07474;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 26px -14px rgba(0,0,0,.55);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Source Sans 3', system-ui, -apple-system, sans-serif;
+    line-height: 1.55;
+    padding-inline: 20px;
+  }
+  .page { max-width: 1000px; margin: 0 auto; padding-block: 56px 72px; display: flex; flex-direction: column; gap: 60px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent-backend);
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  h1, h2 { font-family: 'Archivo', sans-serif; text-wrap: balance; margin: 0 0 12px; letter-spacing: -.01em; }
+  h1 { font-weight: 800; font-size: clamp(28px, 4.5vw, 42px); line-height: 1.08; }
+  h2 { font-weight: 700; font-size: clamp(21px, 3vw, 26px); line-height: 1.22; }
+
+  .lede { font-size: 17px; color: var(--ink-soft); max-width: 640px; margin: 0 0 20px; }
+  .section p.body { color: var(--ink-soft); max-width: 680px; margin: 0 0 20px; font-size: 15.5px; }
+  .section { border-top: 1px solid var(--border); padding-top: 40px; }
+
+  .stack-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 5px 12px;
+    border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--ink-soft);
+  }
+
+  code {
+    font-family: 'JetBrains Mono', monospace; font-size: .92em;
+    background: var(--surface-2); padding: .12em .42em; border-radius: 5px;
+  }
+
+  .scroll-hint {
+    display: none; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-soft); margin: 0 0 10px;
+  }
+  @media (max-width: 760px) { .scroll-hint { display: block; } }
+
+  .diagram-wrap {
+    margin: 0; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px 20px 4px; box-shadow: var(--shadow);
+  }
+  .diagram-scroll { overflow-x: auto; }
+  .diagram-scroll svg { display: block; height: auto; }
+  figcaption {
+    font-size: 13.5px; color: var(--ink-soft); padding: 16px 4px 18px;
+    border-top: 1px solid var(--border); margin-top: 16px;
+  }
+
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); margin: 0 0 16px; }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend i { width: 22px; height: 0; border-top: 2px solid var(--ink-soft); display: inline-block; }
+  .legend i.dashed { border-top-style: dashed; }
+
+  .table-scroll {
+    overflow-x: auto; border: 1px solid var(--border); border-radius: 14px;
+    background: var(--surface); box-shadow: var(--shadow);
+  }
+  table { width: 100%; border-collapse: collapse; min-width: 660px; font-size: 14px; }
+  thead th {
+    text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-soft); font-weight: 600; padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  tbody td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--ink); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--ink-soft); }
+
+  .badge-method {
+    display: inline-block; font-family: 'JetBrains Mono', monospace; font-weight: 700;
+    font-size: 11.5px; letter-spacing: .03em; padding: 4px 9px; border-radius: 6px;
+  }
+  .badge-method.get { color: var(--m-get); background: color-mix(in srgb, var(--m-get) 16%, transparent); }
+  .badge-method.post { color: var(--m-post); background: color-mix(in srgb, var(--m-post) 16%, transparent); }
+  .badge-method.put { color: var(--m-put); background: color-mix(in srgb, var(--m-put) 16%, transparent); }
+  .badge-method.delete { color: var(--m-delete); background: color-mix(in srgb, var(--m-delete) 16%, transparent); }
+
+  .footer-note { border-top: 1px solid var(--border); padding-top: 24px; font-size: 13.5px; color: var(--ink-soft); }
+
+  /* --- shared SVG diagram styles --- */
+  .marker-fill { fill: var(--ink-soft); }
+
+  .box-fill { fill: var(--surface); }
+  .box-frontend { stroke: var(--accent-frontend); stroke-width: 2; }
+  .box-backend { stroke: var(--accent-backend); stroke-width: 2; }
+  .box-db { stroke: var(--accent-db); stroke-width: 2; }
+  .box-title-frontend { fill: var(--accent-frontend); font-family: 'Archivo', sans-serif; font-weight: 700; }
+  .box-title-backend { fill: var(--accent-backend); font-family: 'Archivo', sans-serif; font-weight: 700; }
+  .box-title-db { fill: var(--accent-db); font-family: 'Archivo', sans-serif; font-weight: 700; }
+  .box-detail { fill: var(--ink-soft); font-family: 'JetBrains Mono', monospace; }
+  .tier-eyebrow { font-family: 'JetBrains Mono', monospace; font-weight: 600; letter-spacing: .06em; }
+  .flow-line { stroke: var(--ink-soft); stroke-width: 2; fill: none; }
+  .flow-label { fill: var(--ink); font-family: 'Source Sans 3', sans-serif; font-weight: 600; }
+  .flow-sub { fill: var(--ink-soft); font-family: 'JetBrains Mono', monospace; }
+  .origin-boundary { stroke: var(--border); stroke-width: 1.5; }
+  .cors-pill-bg { fill: var(--surface-2); stroke: var(--border); }
+  .cors-pill-text { fill: var(--ink); font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
+  .lane-usuario { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 3 3; fill: var(--surface); }
+  .lane-frontend { stroke: var(--accent-frontend); stroke-width: 2; fill: var(--surface); }
+  .lane-api { stroke: var(--accent-backend); stroke-width: 2; fill: var(--surface); }
+  .lane-db { stroke: var(--accent-db); stroke-width: 2; fill: var(--surface); }
+  .lane-title { font-family: 'Archivo', sans-serif; font-weight: 700; fill: var(--ink); }
+  .lane-sub { font-family: 'JetBrains Mono', monospace; fill: var(--ink-soft); }
+  .lifeline { stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 3 5; }
+  .msg-solid { stroke: var(--ink-soft); stroke-width: 2; fill: none; }
+  .msg-dashed { stroke: var(--ink-soft); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+  .msg-label { fill: var(--ink); font-family: 'Source Sans 3', sans-serif; font-weight: 600; }
+  .msg-label-code { fill: var(--ink); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+  .msg-sub { fill: var(--ink-soft); font-family: 'JetBrains Mono', monospace; }
+  .note-box { fill: var(--surface-2); stroke: var(--border); stroke-dasharray: 4 3; }
+  .note-title { fill: var(--ink); font-family: 'Source Sans 3', sans-serif; font-weight: 700; }
+  .note-sub { fill: var(--ink-soft); font-family: 'JetBrains Mono', monospace; }
+
+  .client-box { stroke: var(--ink); stroke-width: 2; fill: var(--surface); }
+  .client-title { font-family: 'Archivo', sans-serif; font-weight: 700; fill: var(--ink); }
+  .client-sub { font-family: 'JetBrains Mono', monospace; fill: var(--ink-soft); }
+  .svc-real { stroke: var(--accent-backend); stroke-width: 2; fill: var(--surface); }
+  .svc-hypo { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 5 4; fill: var(--surface); }
+  .svc-title-real { fill: var(--accent-backend); font-family: 'Archivo', sans-serif; font-weight: 700; }
+  .svc-title-hypo { fill: var(--ink-soft); font-family: 'Archivo', sans-serif; font-weight: 700; }
+  .svc-sub-real { fill: var(--accent-backend); font-family: 'JetBrains Mono', monospace; }
+  .svc-sub-hypo { fill: var(--ink-soft); font-family: 'JetBrains Mono', monospace; }
+  .db-real { stroke: var(--accent-db); stroke-width: 2; fill: var(--surface); }
+  .db-hypo { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 5 4; fill: var(--surface); }
+  .db-label-real { font-family: 'JetBrains Mono', monospace; fill: var(--accent-db); }
+  .db-label-hypo { font-family: 'JetBrains Mono', monospace; fill: var(--ink-soft); }
+  .link-real { stroke: var(--accent-backend); stroke-width: 2; fill: none; }
+  .link-hypo { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+  .link-db-real { stroke: var(--accent-db); stroke-width: 2; fill: none; }
+  .link-db-hypo { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+</style>
+
+<div class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Flask · SQLite · JavaScript — arquitectura cliente-servidor</p>
+    <h1>Anatomía de la API de Tareas</h1>
+    <p class="lede">Cada clic en la interfaz dispara un viaje de ida y vuelta entre tres piezas independientes: el navegador, la API Flask y la base de datos SQLite. Así es como luce ese viaje, paso a paso.</p>
+    <div class="stack-pills">
+      <span class="pill">Flask</span><span class="pill">SQLite</span><span class="pill">HTML / CSS / JS</span><span class="pill">API REST</span>
+    </div>
+  </header>
+
+  <section class="section" id="arquitectura">
+    <p class="eyebrow">01 · Arquitectura</p>
+    <h2>Tres capas, un solo camino hacia los datos</h2>
+    <p class="body">El navegador jamás toca la base de datos directamente: todo pasa por la API, la única capa que sabe hablar SQL.</p>
+    <p class="scroll-hint">→ desliza para ver el diagrama completo</p>
+    <figure class="diagram-wrap">
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 960 270" role="img" style="min-width:760px" aria-label="Diagrama de tres capas: Navegador se comunica por fetch en JSON sobre HTTP con la API Flask, que a su vez consulta la base de datos SQLite mediante SQL. Entre el navegador y la API hay un límite de origen distinto que requiere CORS.">
+          <defs>
+            <marker id="arrow-arch" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="marker-fill" />
+            </marker>
+          </defs>
+
+          <!-- Frontend -->
+          <text x="135" y="75" text-anchor="middle" font-size="11" class="tier-eyebrow box-title-frontend">PASO 1 · CLIENTE</text>
+          <rect x="20" y="90" width="230" height="150" rx="16" class="box-fill box-frontend" />
+          <text x="40" y="130" font-size="17" class="box-title-frontend">Navegador</text>
+          <text x="40" y="158" font-size="12" class="box-detail">index.html + style.css</text>
+          <text x="40" y="180" font-size="12" class="box-detail">script.js → fetch()</text>
+          <text x="40" y="202" font-size="12" class="box-detail">localhost:5500</text>
+
+          <!-- Backend -->
+          <text x="480" y="75" text-anchor="middle" font-size="11" class="tier-eyebrow box-title-backend">PASO 2 · API</text>
+          <rect x="365" y="90" width="230" height="150" rx="16" class="box-fill box-backend" />
+          <text x="385" y="130" font-size="17" class="box-title-backend">API Flask</text>
+          <text x="385" y="158" font-size="12" class="box-detail">app.py (Flask + CORS)</text>
+          <text x="385" y="180" font-size="12" class="box-detail">5 rutas REST</text>
+          <text x="385" y="202" font-size="12" class="box-detail">localhost:5000</text>
+
+          <!-- DB -->
+          <text x="825" y="75" text-anchor="middle" font-size="11" class="tier-eyebrow box-title-db">PASO 3 · DATOS</text>
+          <rect x="710" y="90" width="230" height="150" rx="16" class="box-fill box-db" />
+          <text x="730" y="130" font-size="17" class="box-title-db">Base de datos</text>
+          <text x="730" y="158" font-size="12" class="box-detail">tareas.db (SQLite)</text>
+          <text x="730" y="180" font-size="12" class="box-detail">tabla: tareas</text>
+          <text x="730" y="202" font-size="12" class="box-detail">mismo proceso que Flask</text>
+
+          <!-- Arrow 1: Frontend -> Backend -->
+          <line x1="250" y1="165" x2="360" y2="165" class="flow-line" marker-end="url(#arrow-arch)" />
+          <text x="307" y="145" text-anchor="middle" font-size="13.5" class="flow-label">fetch()</text>
+          <text x="307" y="192" text-anchor="middle" font-size="10.5" class="flow-sub">HTTP + JSON</text>
+
+          <!-- CORS boundary -->
+          <line x1="307" y1="70" x2="307" y2="258" stroke-dasharray="4 4" class="origin-boundary" />
+          <rect x="277" y="44" width="60" height="22" rx="11" class="cors-pill-bg" />
+          <text x="307" y="59" text-anchor="middle" font-size="10.5" class="cors-pill-text">CORS</text>
+
+          <!-- Arrow 2: Backend -> DB -->
+          <line x1="595" y1="165" x2="705" y2="165" class="flow-line" marker-end="url(#arrow-arch)" />
+          <text x="652" y="145" text-anchor="middle" font-size="13.5" class="flow-label">sqlite3</text>
+          <text x="652" y="192" text-anchor="middle" font-size="10.5" class="flow-sub">consultas SQL</text>
+        </svg>
+      </div>
+      <figcaption>El navegador solo entiende JSON sobre HTTP; nunca ejecuta SQL. Frontend y backend viven en <strong>orígenes distintos</strong> (puertos 5500 y 5000), por eso <code>app.py</code> habilita CORS. Flask y SQLite, en cambio, comparten el mismo proceso: no hay red de por medio.</figcaption>
+    </figure>
+  </section>
+
+  <section class="section" id="verbos">
+    <p class="eyebrow">02 · Los verbos REST</p>
+    <h2>Cinco rutas, cinco operaciones SQL</h2>
+    <p class="body">Cada verbo HTTP tiene un propósito fijo. La API expone las cinco combinaciones posibles sobre el recurso <code>/tareas</code>.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Método</th><th>Endpoint</th><th>Función en el frontend</th><th>Operación SQL</th><th>Respuesta</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge-method get">GET</span></td>
+            <td class="mono">/tareas</td>
+            <td class="mono">cargarTareas()</td>
+            <td class="mono">SELECT * FROM tareas ORDER BY id</td>
+            <td>200 OK</td>
+          </tr>
+          <tr>
+            <td><span class="badge-method get">GET</span></td>
+            <td class="mono">/tareas/&lt;id&gt;</td>
+            <td class="mono">— (no usada desde la UI)</td>
+            <td class="mono">SELECT * FROM tareas WHERE id = ?</td>
+            <td>200 / 404</td>
+          </tr>
+          <tr>
+            <td><span class="badge-method post">POST</span></td>
+            <td class="mono">/tareas</td>
+            <td class="mono">crearTarea()</td>
+            <td class="mono">INSERT INTO tareas (tarea, estado)</td>
+            <td>201 / 400</td>
+          </tr>
+          <tr>
+            <td><span class="badge-method put">PUT</span></td>
+            <td class="mono">/tareas/&lt;id&gt;</td>
+            <td class="mono">actualizarTarea()</td>
+            <td class="mono">UPDATE tareas SET tarea=?, estado=?</td>
+            <td>200 / 404 / 400</td>
+          </tr>
+          <tr>
+            <td><span class="badge-method delete">DELETE</span></td>
+            <td class="mono">/tareas/&lt;id&gt;</td>
+            <td class="mono">eliminarTarea()</td>
+            <td class="mono">DELETE FROM tareas WHERE id = ?</td>
+            <td>200 / 404</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="secuencia">
+    <p class="eyebrow">03 · Anatomía de una petición</p>
+    <h2>Qué ocurre cuando creas una tarea</h2>
+    <p class="body">Del clic del usuario al registro guardado en disco, y de vuelta. Fíjate en el paso 6: el frontend no actualiza solo la fila nueva, vuelve a pedir la lista completa.</p>
+    <div class="legend">
+      <span><i></i> solicitud</span>
+      <span><i class="dashed"></i> respuesta</span>
+    </div>
+    <p class="scroll-hint">→ desliza para ver la secuencia completa</p>
+    <figure class="diagram-wrap">
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 960 840" role="img" style="min-width:880px" aria-label="Diagrama de secuencia: el usuario pulsa Agregar, el frontend envía POST /tareas a la API Flask, que valida los datos, inserta la fila en SQLite, responde 201 Created, vuelve a pedir la lista con GET /tareas, y el frontend actualiza el DOM.">
+          <defs>
+            <marker id="arrow-seq" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="marker-fill" />
+            </marker>
+          </defs>
+
+          <!-- Lane headers -->
+          <rect x="25" y="18" width="190" height="46" rx="10" class="lane-usuario" />
+          <text x="120" y="38" text-anchor="middle" font-size="13.5" class="lane-title">Usuario</text>
+          <text x="120" y="54" text-anchor="middle" font-size="10" class="lane-sub">(persona)</text>
+
+          <rect x="265" y="18" width="190" height="46" rx="10" class="lane-frontend" />
+          <text x="360" y="38" text-anchor="middle" font-size="13.5" class="lane-title">Frontend</text>
+          <text x="360" y="54" text-anchor="middle" font-size="10" class="lane-sub">script.js</text>
+
+          <rect x="505" y="18" width="190" height="46" rx="10" class="lane-api" />
+          <text x="600" y="38" text-anchor="middle" font-size="13.5" class="lane-title">API Flask</text>
+          <text x="600" y="54" text-anchor="middle" font-size="10" class="lane-sub">app.py</text>
+
+          <rect x="745" y="18" width="190" height="46" rx="10" class="lane-db" />
+          <text x="840" y="38" text-anchor="middle" font-size="13.5" class="lane-title">SQLite</text>
+          <text x="840" y="54" text-anchor="middle" font-size="10" class="lane-sub">tareas.db</text>
+
+          <!-- Lifelines -->
+          <line x1="120" y1="64" x2="120" y2="800" class="lifeline" />
+          <line x1="360" y1="64" x2="360" y2="800" class="lifeline" />
+          <line x1="600" y1="64" x2="600" y2="800" class="lifeline" />
+          <line x1="840" y1="64" x2="840" y2="800" class="lifeline" />
+
+          <!-- 1: Usuario -> Frontend -->
+          <line x1="120" y1="110" x2="360" y2="110" class="msg-solid" marker-end="url(#arrow-seq)" />
+          <text x="240" y="100" text-anchor="middle" font-size="13.5" class="msg-label">1 · Escribe la tarea y pulsa Agregar</text>
+
+          <!-- 2: Frontend -> API -->
+          <line x1="360" y1="180" x2="600" y2="180" class="msg-solid" marker-end="url(#arrow-seq)" />
+          <text x="480" y="167" text-anchor="middle" font-size="13" class="msg-label-code">2 · POST /tareas</text>
+          <text x="480" y="196" text-anchor="middle" font-size="11" class="msg-sub">{ tarea, estado }</text>
+
+          <!-- Note: validation -->
+          <rect x="470" y="216" width="260" height="52" rx="8" class="note-box" />
+          <text x="600" y="238" text-anchor="middle" font-size="12.5" class="note-title">Valida los datos</text>
+          <text x="600" y="256" text-anchor="middle" font-size="10.5" class="note-sub">tarea no vacía · estado permitido</text>
+
+          <!-- 3: API -> SQLite (INSERT) -->
+          <line x1="600" y1="310" x2="840" y2="310" class="msg-solid" marker-end="url(#arrow-seq)" />
+          <text x="720" y="297" text-anchor="middle" font-size="12.5" class="msg-label-code">3 · INSERT INTO tareas (tarea, estado)</text>
+
+          <!-- 4: SQLite -> API -->
+          <line x1="840" y1="375" x2="600" y2="375" class="msg-dashed" marker-end="url(#arrow-seq)" />
+          <text x="720" y="362" text-anchor="middle" font-size="13.5" class="msg-label">4 · Devuelve el id autogenerado</text>
+
+          <!-- 5: API -> Frontend -->
+          <line x1="600" y1="440" x2="360" y2="440" class="msg-dashed" marker-end="url(#arrow-seq)" />
+          <text x="480" y="427" text-anchor="middle" font-size="13" class="msg-label-code">5 · 201 Created</text>
+          <text x="480" y="456" text-anchor="middle" font-size="11" class="msg-sub">{ id, tarea, estado }</text>
+
+          <!-- 6: Frontend -> API -->
+          <line x1="360" y1="505" x2="600" y2="505" class="msg-solid" marker-end="url(#arrow-seq)" />
+          <text x="480" y="492" text-anchor="middle" font-size="13" class="msg-label-code">6 · GET /tareas</text>
+          <text x="480" y="521" text-anchor="middle" font-size="11" class="msg-sub">cargarTareas()</text>
+
+          <!-- 7: API -> SQLite (SELECT) -->
+          <line x1="600" y1="570" x2="840" y2="570" class="msg-solid" marker-end="url(#arrow-seq)" />
+          <text x="720" y="557" text-anchor="middle" font-size="12.5" class="msg-label-code">7 · SELECT * FROM tareas ORDER BY id</text>
+
+          <!-- 8: SQLite -> API -->
+          <line x1="840" y1="635" x2="600" y2="635" class="msg-dashed" marker-end="url(#arrow-seq)" />
+          <text x="720" y="622" text-anchor="middle" font-size="13.5" class="msg-label">8 · Devuelve todas las filas</text>
+
+          <!-- 9: API -> Frontend -->
+          <line x1="600" y1="700" x2="360" y2="700" class="msg-dashed" marker-end="url(#arrow-seq)" />
+          <text x="480" y="687" text-anchor="middle" font-size="13" class="msg-label-code">9 · 200 OK</text>
+          <text x="480" y="716" text-anchor="middle" font-size="11" class="msg-sub">[ tarea1, tarea2, ... ]</text>
+
+          <!-- 10: Frontend -> Usuario -->
+          <line x1="360" y1="765" x2="120" y2="765" class="msg-solid" marker-end="url(#arrow-seq)" />
+          <text x="240" y="752" text-anchor="middle" font-size="13.5" class="msg-label">10 · Actualiza el DOM</text>
+          <text x="240" y="781" text-anchor="middle" font-size="11" class="msg-sub">renderizarLista(tareas)</text>
+        </svg>
+      </div>
+      <figcaption>Ningún mensaje salta una capa: el usuario nunca llama a la API, y la API nunca expone la base de datos al navegador. El paso 6 es clave — en vez de insertar solo la fila nueva en el DOM, el frontend vuelve a pedir la lista completa con <code>GET /tareas</code>. Es una simplificación típica en aplicaciones pequeñas.</figcaption>
+    </figure>
+  </section>
+
+  <section class="section" id="microservicios">
+    <p class="eyebrow">04 · De una API a varios microservicios</p>
+    <h2>El mismo patrón, multiplicado</h2>
+    <p class="body">Un microservicio no es más que esto: una API con su propia base de datos, dueña exclusiva de sus tablas. Encadena varios y tienes una arquitectura de microservicios.</p>
+    <figure class="diagram-wrap">
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 760 320" role="img" style="min-width:640px" aria-label="Diagrama que muestra un cliente conectado a tres servicios independientes, cada uno con su propia base de datos: Tareas, que es este proyecto, y Usuarios y Pagos, que son hipotéticos.">
+          <defs>
+            <marker id="arrow-micro" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="marker-fill" />
+            </marker>
+          </defs>
+
+          <!-- Client -->
+          <rect x="20" y="110" width="170" height="90" rx="12" class="client-box" />
+          <text x="105" y="148" text-anchor="middle" font-size="15" class="client-title">Cliente</text>
+          <text x="105" y="168" text-anchor="middle" font-size="10.5" class="client-sub">cualquier app HTTP</text>
+
+          <!-- Service 1: Tareas (real) -->
+          <line x1="190" y1="155" x2="300" y2="57" class="link-real" marker-end="url(#arrow-micro)" />
+          <rect x="300" y="20" width="210" height="74" rx="10" class="svc-real" />
+          <text x="316" y="48" font-size="14" class="svc-title-real">Tareas</text>
+          <text x="316" y="66" font-size="10" class="svc-sub-real">(este proyecto)</text>
+          <line x1="510" y1="57" x2="590" y2="57" class="link-db-real" marker-end="url(#arrow-micro)" />
+          <rect x="590" y="30" width="130" height="54" rx="8" class="db-real" />
+          <text x="655" y="62" text-anchor="middle" font-size="11" class="db-label-real">tareas.db</text>
+
+          <!-- Service 2: Usuarios (hypothetical) -->
+          <line x1="190" y1="155" x2="300" y2="160" class="link-hypo" marker-end="url(#arrow-micro)" />
+          <rect x="300" y="123" width="210" height="74" rx="10" class="svc-hypo" />
+          <text x="316" y="151" font-size="14" class="svc-title-hypo">Usuarios</text>
+          <text x="316" y="169" font-size="10" class="svc-sub-hypo">hipotético</text>
+          <line x1="510" y1="160" x2="590" y2="160" class="link-db-hypo" marker-end="url(#arrow-micro)" />
+          <rect x="590" y="133" width="130" height="54" rx="8" class="db-hypo" />
+          <text x="655" y="165" text-anchor="middle" font-size="11" class="db-label-hypo">usuarios.db</text>
+
+          <!-- Service 3: Pagos (hypothetical) -->
+          <line x1="190" y1="155" x2="300" y2="263" class="link-hypo" marker-end="url(#arrow-micro)" />
+          <rect x="300" y="226" width="210" height="74" rx="10" class="svc-hypo" />
+          <text x="316" y="254" font-size="14" class="svc-title-hypo">Pagos</text>
+          <text x="316" y="272" font-size="10" class="svc-sub-hypo">hipotético</text>
+          <line x1="510" y1="263" x2="590" y2="263" class="link-db-hypo" marker-end="url(#arrow-micro)" />
+          <rect x="590" y="236" width="130" height="54" rx="8" class="db-hypo" />
+          <text x="655" y="268" text-anchor="middle" font-size="11" class="db-label-hypo">pagos.db</text>
+        </svg>
+      </div>
+      <figcaption>Cada microservicio expone su propia API REST y es dueño exclusivo de su base de datos — nunca comparte tablas directamente con otro servicio. <strong>Usuarios</strong> y <strong>Pagos</strong> son hipotéticos, solo para ilustrar el patrón; <strong>Tareas</strong> es la API que construiste en este proyecto.</figcaption>
+    </figure>
+  </section>
+
+  <footer class="footer-note">
+    <p>Construido con Flask + SQLite en el backend y HTML/CSS/JS puro en el frontend, sin frameworks, para que cada capa del patrón cliente-servidor quede a la vista.</p>
+  </footer>
+
+</div>
